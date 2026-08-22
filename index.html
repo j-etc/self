@@ -324,31 +324,6 @@
     line-height:1.8; padding:40px;
   }
   .placeholder-main b{ color:var(--ink-soft); font-weight:600; }
-
-  .ai-box{
-    margin:0 26px 20px; border:1px solid var(--gold); background:var(--gold-soft);
-    border-radius:6px; padding:14px 16px;
-  }
-  .ai-box-head{
-    display:flex; justify-content:space-between; align-items:baseline;
-    margin-bottom:9px; font-size:12px; color:var(--gold); font-weight:700;
-    letter-spacing:0.02em;
-  }
-  .ai-box-head .count{ font-weight:400; color:var(--ink-soft); font-family:'JetBrains Mono',monospace; }
-  .ai-box-text{
-    font-size:13.5px; line-height:1.7; color:var(--ink); white-space:pre-wrap;
-    max-height:240px; overflow-y:auto; background:var(--card); border:1px solid var(--border);
-    border-radius:5px; padding:12px 14px; margin-bottom:10px;
-  }
-  .ai-box-actions{ display:flex; gap:8px; justify-content:flex-end; }
-  .ai-loading{ font-size:13px; color:var(--ink-soft); display:flex; align-items:center; gap:8px; }
-  .ai-spinner{
-    width:13px; height:13px; border-radius:50%;
-    border:2px solid var(--ink-faint); border-top-color:var(--gold);
-    animation:ai-spin 0.7s linear infinite; flex:none;
-  }
-  @keyframes ai-spin{ to{ transform:rotate(360deg); } }
-  .ghost-btn[disabled]{ opacity:0.55; cursor:default; }
 </style>
 </head>
 <body>
@@ -548,14 +523,6 @@
     if(isDirty){ saveNow(); }
   }
 
-  // AI 첨삭(다듬기) 기능 상태. Claude 채팅창(아티팩트)에서 열었을 때만
-  // 아래 fetch가 Anthropic API로 인증을 받아 정상 동작합니다.
-  var aiState = { status: 'idle', result: '', error: '' };
-
-  function resetAiState(){
-    aiState = { status: 'idle', result: '', error: '' };
-  }
-
   function getCompany(id){
     for(var i=0;i<state.companies.length;i++){
       if(state.companies[i].id === id) return state.companies[i];
@@ -677,7 +644,6 @@
         state.selectedCompanyId = co.id;
         state.selectedItemId = co.items[0] ? co.items[0].id : null;
         pendingDeleteItemId = null;
-        resetAiState();
         render();
       });
       listEl.appendChild(row);
@@ -732,7 +698,6 @@
       row.addEventListener('click', function(){
         state.selectedItemId = item.id;
         pendingDeleteItemId = null;
-        resetAiState();
         render();
       });
       listEl.appendChild(row);
@@ -752,7 +717,7 @@
 
     var coHeaderHtml =
       '<div class="co-header">' +
-        '<input type="text" id="coNameInput" placeholder="기업명을 입력하세요 (예: 네이버)" value="' + escapeHtml(co.name || '') + '" />' +
+        '<input type="text" id="coNameInput" autocomplete="off" placeholder="기업명을 입력하세요 (예: 네이버)" value="' + escapeHtml(co.name || '') + '" />' +
         '<div class="co-actions">' +
           '<button class="ghost-btn danger" id="deleteCoBtn">' + (pendingDeleteCoId === co.id ? '기업 전체 삭제할까요?' : '기업 삭제') + '</button>' +
         '</div>' +
@@ -780,12 +745,12 @@
       '<div class="main-top">' +
         '<div class="title-field">' +
           '<label>문항 제목</label>' +
-          '<input type="text" id="titleInput" placeholder="예: 지원동기를 작성해주세요" value="' + escapeHtml(item.title || '') + '" />' +
+          '<input type="text" id="titleInput" autocomplete="off" placeholder="예: 지원동기를 작성해주세요" value="' + escapeHtml(item.title || '') + '" />' +
         '</div>' +
         '<div class="limit-field">' +
           '<label>글자수 제한</label>' +
           '<div class="row">' +
-            '<input type="number" id="limitInput" min="0" value="' + (item.limit || '') + '" placeholder="제한 없음" />' +
+            '<input type="number" id="limitInput" autocomplete="off" min="0" value="' + (item.limit || '') + '" placeholder="제한 없음" />' +
             '<span class="unit">자</span>' +
           '</div>' +
         '</div>' +
@@ -797,19 +762,17 @@
         '</div>' +
         '<div class="counter-seal">' +
           '<span class="' + numClass + '" id="mainCount">' + displayCount.toLocaleString('ko-KR') + '</span>' +
-          (hasLimit ? ('<span class="slash">/</span><span class="lim">' + item.limit.toLocaleString('ko-KR') + '자</span>') : '<span class="lim">자</span>') +
-          '<span class="sub">(' + subLabel + ' ' + subCount.toLocaleString('ko-KR') + '자)</span>' +
+          '<span id="limWrap">' + (hasLimit ? ('<span class="slash">/</span><span class="lim">' + item.limit.toLocaleString('ko-KR') + '자</span>') : '<span class="lim">자</span>') + '</span>' +
+          '<span class="sub" id="subCountLabel">(' + subLabel + ' ' + subCount.toLocaleString('ko-KR') + '자)</span>' +
         '</div>' +
       '</div>' +
-      (hasLimit ? ('<div class="progress-bar"><div class="fill' + (overLimit ? ' over' : '') + '" style="width:' + pct + '%"></div></div>') : '') +
+      '<div id="progressBarWrap">' + (hasLimit ? ('<div class="progress-bar"><div class="fill' + (overLimit ? ' over' : '') + '" style="width:' + pct + '%"></div></div>') : '') + '</div>' +
       '<div class="editor-wrap">' +
-        '<textarea id="contentInput" placeholder="이 항목의 자소서 내용을 입력하세요.">' + escapeHtml(item.content || '') + '</textarea>' +
+        '<textarea id="contentInput" autocomplete="off" placeholder="이 항목의 자소서 내용을 입력하세요.">' + escapeHtml(item.content || '') + '</textarea>' +
       '</div>' +
-      buildAiBoxHtml() +
       '<div class="foot-actions">' +
         '<div class="foot-left" id="footLeft"><span class="dirty-dot"></span><span id="footStatus"></span></div>' +
         '<div class="foot-right">' +
-          '<button class="ghost-btn" id="aiEditBtn"' + (aiState.status === 'loading' ? ' disabled' : '') + '>' + (aiState.status === 'loading' ? 'AI가 다듬는 중…' : 'AI로 다듬기') + '</button>' +
           '<button class="ghost-btn" id="copyBtn"><span>복사</span></button>' +
           '<button class="ghost-btn primary" id="saveBtn">저장</button>' +
           '<button class="ghost-btn danger" id="deleteItemBtn">' + (pendingDeleteItemId === item.id ? '정말 삭제할까요?' : '항목 삭제') + '</button>' +
@@ -818,7 +781,6 @@
 
     bindCoHeader(co);
     updateSaveUi();
-    bindAiBox(item);
 
     document.getElementById('titleInput').addEventListener('input', function(e){
       item.title = e.target.value;
@@ -831,7 +793,7 @@
       var v = e.target.value === '' ? null : parseInt(e.target.value, 10);
       item.limit = (v && v > 0) ? v : null;
       renderItemList();
-      renderMain();
+      updateLimitUi(item);
       markDirty();
     });
 
@@ -940,108 +902,34 @@
     }
   }
 
-  function buildAiBoxHtml(){
-    if(aiState.status === 'idle'){
-      return '';
-    }
-    if(aiState.status === 'loading'){
-      return '<div class="ai-box"><div class="ai-loading"><span class="ai-spinner"></span>AI가 자기소개서를 다듬고 있어요…</div></div>';
-    }
-    if(aiState.status === 'error'){
-      return '<div class="ai-box">' +
-        '<div class="ai-box-head"><span>AI 첨삭 실패</span></div>' +
-        '<div class="ai-loading">' + escapeHtml(aiState.error) + '</div>' +
-        '<div class="ai-box-actions"><button class="ghost-btn" id="aiDismissBtn">닫기</button></div>' +
-      '</div>';
-    }
-    var resultCount = countText(aiState.result).withSpace;
-    return '<div class="ai-box">' +
-      '<div class="ai-box-head"><span>AI 첨삭 제안</span><span class="count">' + resultCount.toLocaleString('ko-KR') + '자</span></div>' +
-      '<div class="ai-box-text">' + escapeHtml(aiState.result) + '</div>' +
-      '<div class="ai-box-actions">' +
-        '<button class="ghost-btn" id="aiDismissBtn">닫기</button>' +
-        '<button class="ghost-btn primary" id="aiApplyBtn">이 내용으로 적용</button>' +
-      '</div>' +
-    '</div>';
-  }
+  // 글자수 제한 입력칸(limitInput)은 건드리지 않고, 그 옆 표시(글자수/제한, 진행바)만
+  // 다시 그려서 입력 도중 포커스가 빠지지 않게 합니다.
+  function updateLimitUi(item){
+    var c = countText(item.content || '');
+    var displayCount = state.mode === 'with' ? c.withSpace : c.withoutSpace;
+    var hasLimit = item.limit && item.limit > 0;
+    var pct = hasLimit ? Math.min(100, (displayCount / item.limit) * 100) : 0;
+    var overLimit = hasLimit && displayCount > item.limit;
+    var warnLimit = hasLimit && !overLimit && pct >= 90;
 
-  function bindAiBox(item){
-    var aiEditBtn = document.getElementById('aiEditBtn');
-    if(aiEditBtn){
-      aiEditBtn.addEventListener('click', function(){
-        aiPolish(item);
-      });
-    }
-    var aiDismissBtn = document.getElementById('aiDismissBtn');
-    if(aiDismissBtn){
-      aiDismissBtn.addEventListener('click', function(){
-        resetAiState();
-        renderMain();
-      });
-    }
-    var aiApplyBtn = document.getElementById('aiApplyBtn');
-    if(aiApplyBtn){
-      aiApplyBtn.addEventListener('click', function(){
-        item.content = aiState.result;
-        resetAiState();
-        renderItemList();
-        renderCoList();
-        renderStats();
-        markDirty();
-        renderMain();
-      });
-    }
-  }
-
-  async function aiPolish(item){
-    if(!item.content || !item.content.trim()){
-      aiState = { status: 'error', result: '', error: '다듬을 내용이 없어요. 먼저 자기소개서 내용을 입력해주세요.' };
-      renderMain();
-      return;
+    var numEl = document.getElementById('mainCount');
+    if(numEl){
+      numEl.className = overLimit ? 'n over' : (warnLimit ? 'n warn' : 'n');
     }
 
-    aiState = { status: 'loading', result: '', error: '' };
-    renderMain();
-
-    try{
-      var limitNote = item.limit
-        ? ('글자수 제한은 공백 포함 ' + item.limit + '자이며, 결과는 이 제한을 넘지 않도록 해주세요.')
-        : '별도의 글자수 제한은 없습니다.';
-      var systemPrompt = '당신은 한국어 자기소개서 첨삭 전문가입니다. 사용자가 준 자기소개서 항목을 더 자연스럽고 설득력 있게 다듬어 주세요. ' +
-        '원래 내용에 없는 경력이나 사실을 새로 지어내지 말고, 사실 관계는 유지한 채 문장과 표현, 구성만 개선하세요. ' +
-        limitNote + ' 답변은 다듬어진 자기소개서 본문만 출력하고, 인사말이나 설명, 따옴표는 붙이지 마세요.';
-      var userPrompt = '문항 제목: ' + (item.title && item.title.trim() ? item.title : '(제목 없음)') + '\n\n원본 내용:\n' + item.content;
-
-      var response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [ { role: 'user', content: userPrompt } ]
-        })
-      });
-
-      if(!response.ok){
-        throw new Error('요청이 실패했어요 (오류 코드 ' + response.status + '). Claude 대화창 안에서 열었는지 확인해주세요.');
-      }
-
-      var data = await response.json();
-      var textBlocks = (data.content || [])
-        .filter(function(b){ return b.type === 'text'; })
-        .map(function(b){ return b.text; });
-      var resultText = textBlocks.join('\n').trim();
-
-      if(!resultText){
-        throw new Error('AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요.');
-      }
-
-      aiState = { status: 'done', result: resultText, error: '' };
-    }catch(e){
-      aiState = { status: 'error', result: '', error: (e && e.message) ? e.message : 'AI 요청 중 오류가 발생했어요.' };
+    var limWrapEl = document.getElementById('limWrap');
+    if(limWrapEl){
+      limWrapEl.innerHTML = hasLimit
+        ? ('<span class="slash">/</span><span class="lim">' + item.limit.toLocaleString('ko-KR') + '자</span>')
+        : '<span class="lim">자</span>';
     }
-    renderMain();
+
+    var barWrapEl = document.getElementById('progressBarWrap');
+    if(barWrapEl){
+      barWrapEl.innerHTML = hasLimit
+        ? ('<div class="progress-bar"><div class="fill' + (overLimit ? ' over' : '') + '" style="width:' + pct + '%"></div></div>')
+        : '';
+    }
   }
 
   function render(){

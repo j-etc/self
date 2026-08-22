@@ -88,9 +88,6 @@
     gap:22px;
     align-items:start;
   }
-  @media (max-width: 780px){
-    .layout{grid-template-columns:1fr;}
-  }
 
   .panel{
     background:var(--card);
@@ -219,17 +216,22 @@
     display:flex; justify-content:space-between; align-items:flex-start;
     gap:20px; padding:22px 26px 16px; border-bottom:1px solid var(--line);
   }
-  .title-field{ flex:1; }
+  .title-field{ flex:1; min-width:0; }
   .title-field label{
     display:block; font-size:11px; letter-spacing:0.06em; color:var(--ink-soft);
     text-transform:uppercase; margin-bottom:6px;
   }
-  .title-field input[type=text]{
+  /* 문항 제목: 길어져도 옆으로 넘치지 않고 아래로 줄바꿈 되도록 textarea 사용 */
+  .title-field textarea{
+    display:block;
     width:100%; border:none; background:transparent;
-    font-family:'Noto Serif KR',serif; font-weight:700; font-size:22px;
+    font-family:'Noto Serif KR',serif; font-weight:700; font-size:18px;
+    line-height:1.45;
     color:var(--ink); padding:2px 0; outline:none;
+    resize:none; overflow:hidden;
+    white-space:pre-wrap; word-break:break-word;
   }
-  .title-field input[type=text]::placeholder{ color:var(--ink-faint); font-weight:500; }
+  .title-field textarea::placeholder{ color:var(--ink-faint); font-weight:500; }
 
   .limit-field{ text-align:right; flex:none; }
   .limit-field label{
@@ -284,7 +286,7 @@
   .progress-bar .fill.over{ background:var(--red); }
 
   .editor-wrap{ padding:20px 26px 26px; flex:1; display:flex; }
-  textarea{
+  textarea#contentInput{
     width:100%; min-height:340px; border:1px solid var(--border); border-radius:5px;
     background:
       linear-gradient(var(--card) 0, var(--card) 100%),
@@ -292,8 +294,8 @@
     padding:16px 20px; font-family:'Pretendard',sans-serif; font-size:13.5px;
     line-height:24px; color:var(--ink); resize:vertical; outline:none;
   }
-  textarea:focus{ border-color:var(--gold); }
-  textarea::placeholder{ color:var(--ink-faint); }
+  textarea#contentInput:focus{ border-color:var(--gold); }
+  textarea#contentInput::placeholder{ color:var(--ink-faint); }
 
   .foot-actions{
     display:flex; justify-content:space-between; align-items:center;
@@ -324,6 +326,30 @@
     line-height:1.8; padding:40px;
   }
   .placeholder-main b{ color:var(--ink-soft); font-weight:600; }
+
+  /* 화면이 좁아질 때(창을 절반으로 줄이는 경우 등):
+     사이드바(기업/항목 목록)가 위에서 길게 차지해 글쓰기 영역을 밀어내던 문제를 해결.
+     - 글쓰기 영역(main)을 항상 먼저 보이도록 순서를 바꾸고
+     - 사이드바는 아래로, 더 낮은 높이로 축소해 스크롤만 살짝 하면 되게 함 */
+  @media (max-width: 900px){
+    .wrap{ padding:28px 16px 60px; }
+    header.top{ margin-bottom:20px; padding-bottom:14px; gap:14px; }
+    .stats{ gap:14px; }
+    .stat .num{ font-size:18px; }
+    .layout{ grid-template-columns:1fr; gap:14px; }
+    .main{ order:-1; }
+    .sidebar-col{ position:static; top:auto; }
+    .side-block{ padding:10px 12px; }
+    .scroll-list{ max-height:130px; }
+    .co-header{ padding:10px 16px; }
+    .co-header input{ font-size:14px; }
+    .main-top{ padding:14px 16px 10px; gap:14px; }
+    .title-field textarea{ font-size:16px; }
+    .toolbar{ padding:10px 16px; }
+    .editor-wrap{ padding:12px 16px 18px; }
+    textarea#contentInput{ min-height:220px; }
+    .foot-actions{ padding:0 16px 16px; }
+  }
 </style>
 </head>
 <body>
@@ -624,8 +650,6 @@
     emptyEl.style.display = 'none';
     state.companies.forEach(function(co){
       var itemCnt = co.items.length;
-      var chars = 0;
-      co.items.forEach(function(it){ chars += countText(it.content || '').withSpace; });
 
       var row = document.createElement('div');
       row.className = 'co-row' + (co.id === state.selectedCompanyId ? ' active' : '');
@@ -633,11 +657,12 @@
       var nameClass = co.name && co.name.trim() ? 'name' : 'name empty';
       var initial = (co.name && co.name.trim()) ? co.name.trim().charAt(0) : '?';
 
+      // 기업별 전체 글자수 합산 표시는 실용성이 낮아 빼고, 항목 개수만 간단히 보여줍니다.
       row.innerHTML =
         '<span class="badge">' + escapeHtml(initial) + '</span>' +
         '<span class="meta">' +
           '<div class="' + nameClass + '">' + escapeHtml(nameText) + '</div>' +
-          '<div class="sub">항목 ' + itemCnt + ' · ' + chars.toLocaleString('ko-KR') + '자</div>' +
+          '<div class="sub">항목 ' + itemCnt + '개</div>' +
         '</span>';
 
       row.addEventListener('click', function(){
@@ -667,7 +692,8 @@
     }
 
     addBtn.style.display = 'inline-block';
-    label.textContent = (co.name && co.name.trim() ? co.name : '이 기업') + '의 항목';
+    // 기업명을 다시 붙이면 좁은 화면에서 문구가 길어져 지저분해지므로 항상 짧게 "항목"으로 표시
+    label.textContent = '항목';
 
     if(co.items.length === 0){
       emptyEl.style.display = 'block';
@@ -702,6 +728,12 @@
       });
       listEl.appendChild(row);
     });
+  }
+
+  function autoGrowTextarea(el){
+    if(!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
   }
 
   function renderMain(){
@@ -745,7 +777,7 @@
       '<div class="main-top">' +
         '<div class="title-field">' +
           '<label>문항 제목</label>' +
-          '<input type="text" id="titleInput" autocomplete="off" placeholder="예: 지원동기를 작성해주세요" value="' + escapeHtml(item.title || '') + '" />' +
+          '<textarea id="titleInput" rows="1" autocomplete="off" placeholder="예: 지원동기를 작성해주세요">' + escapeHtml(item.title || '') + '</textarea>' +
         '</div>' +
         '<div class="limit-field">' +
           '<label>글자수 제한</label>' +
@@ -782,8 +814,11 @@
     bindCoHeader(co);
     updateSaveUi();
 
-    document.getElementById('titleInput').addEventListener('input', function(e){
+    var titleEl = document.getElementById('titleInput');
+    autoGrowTextarea(titleEl);
+    titleEl.addEventListener('input', function(e){
       item.title = e.target.value;
+      autoGrowTextarea(titleEl);
       renderItemList();
       renderStats();
       markDirty();
@@ -847,7 +882,6 @@
       nameInput.addEventListener('input', function(e){
         co.name = e.target.value;
         renderCoList();
-        renderItemList();
         markDirty();
       });
     }
